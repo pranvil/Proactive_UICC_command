@@ -242,7 +242,7 @@ def ber_tlv_check(input_data):
 def create_ui(parsed_messages, raw_messages):
     root = tk.Tk()
     root.title("解析结果显示")
-    root.geometry("1000x700")  # 增加窗口初始大小
+    root.geometry("700x700")  # 减少窗口初始宽度约30%
 
     # 上部搜索框
     search_frame = ttk.Frame(root)
@@ -258,16 +258,24 @@ def create_ui(parsed_messages, raw_messages):
     search_button = ttk.Button(search_frame, text="搜索")
     search_button.pack(side=tk.LEFT, padx=5)
 
+    # 在搜索框旁边添加"重置"按钮
+    reset_button = ttk.Button(search_frame, text="重置")
+    reset_button.pack(side=tk.LEFT, padx=5)
+
     # 左侧列表框，添加水平滚动条
     list_frame = ttk.Frame(root)
     list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+    # 创建一个子帧用于 Listbox 和垂直滚动条
+    listbox_frame = ttk.Frame(list_frame)
+    listbox_frame.pack(fill=tk.BOTH, expand=True)
+
     # 创建 Listbox 首先
-    listbox = tk.Listbox(list_frame, selectmode=tk.SINGLE, width=100)
+    listbox = tk.Listbox(listbox_frame, selectmode=tk.SINGLE, width=70)  # 减少宽度约30%
     listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
     # 创建垂直滚动条
-    scrollbar_y = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=listbox.yview)
+    scrollbar_y = ttk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=listbox.yview)
     scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
     listbox.config(yscrollcommand=scrollbar_y.set)
 
@@ -293,21 +301,15 @@ def create_ui(parsed_messages, raw_messages):
     raw_text = tk.Text(raw_frame, wrap=tk.WORD, height=10, bg="#f0f0f0")
     raw_text.pack(fill=tk.BOTH, expand=True)
 
-    # 定义标签样式
-    listbox_tags = {
-        "terminal=>uicc:": "blue",
-        "uicc=>terminal:": "red",
-    }
-
     # 将解析后的消息添加到列表框
     for idx, msg in enumerate(parsed_messages):
         first_line = msg.split('\n')[0].strip()
         if first_line.startswith("terminal=>uicc:"):
             listbox.insert(tk.END, first_line)
-            listbox.itemconfig(idx, {'fg': 'blue'})
+            listbox.itemconfig(tk.END, {'fg': 'blue'})  # 使用tk.END而不是idx
         elif first_line.startswith("uicc=>terminal:"):
             listbox.insert(tk.END, first_line)
-            listbox.itemconfig(idx, {'fg': 'red'})
+            listbox.itemconfig(tk.END, {'fg': 'red'})
         else:
             listbox.insert(tk.END, first_line)
 
@@ -329,7 +331,7 @@ def create_ui(parsed_messages, raw_messages):
     def search():
         pattern = search_var.get()
         try:
-            regex = re.compile(pattern)
+            regex = re.compile(pattern, re.IGNORECASE)  # 添加忽略大小写标志
         except re.error:
             messagebox.showerror("错误", "无效的正则表达式")
             return
@@ -348,6 +350,23 @@ def create_ui(parsed_messages, raw_messages):
                     listbox.insert(tk.END, first_line)
 
     search_button.config(command=search)
+
+    # 重置搜索功能
+    def reset_search():
+        search_var.set("")
+        listbox.delete(0, tk.END)
+        for idx, msg in enumerate(parsed_messages):
+            first_line = msg.split('\n')[0].strip()
+            if first_line.startswith("terminal=>uicc:"):
+                listbox.insert(tk.END, first_line)
+                listbox.itemconfig(tk.END, {'fg': 'blue'})
+            elif first_line.startswith("uicc=>terminal:"):
+                listbox.insert(tk.END, first_line)
+                listbox.itemconfig(tk.END, {'fg': 'red'})
+            else:
+                listbox.insert(tk.END, first_line)
+
+    reset_button.config(command=reset_search)
 
     root.mainloop()
 
