@@ -26,17 +26,23 @@ def extract_apdu_messages(file_path):
             extracted_messages.append("".join(current_message))
             current_message = []
         elif extracting:
-            # Use regex to remove prefixes like "APDU_rx X:" and "APDU_tx X:" where X can be one or more digits
             cleaned_line = re.sub(r'APDU_[rt]x \d+:', '', stripped_line).replace(" ", "")
             current_message.append(cleaned_line)
 
     return extracted_messages
 
 def select_file_and_extract():
+    """
+    弹出对话框让用户选择包含原始MTK APDU的日志文件，
+    将提取到的APDU保存到 extracted_messages.txt。
+    """
     root = tk.Tk()
-    root.withdraw()  # Hide the main window
-    file_path = filedialog.askopenfilename(title="Select MTK raw APDU data file", filetypes=[("Text files", "*.txt")])
-    
+    root.withdraw()  # 隐藏主窗口
+    file_path = filedialog.askopenfilename(
+        title="Select MTK raw APDU data file", 
+        filetypes=[("Text files", "*.txt")]
+    )
+
     if file_path:
         messages = extract_apdu_messages(file_path)
         if messages:
@@ -47,4 +53,4 @@ def select_file_and_extract():
         else:
             print("No messages extracted.")
     else:
-        print("No file selected.") 
+        print("No file selected.")

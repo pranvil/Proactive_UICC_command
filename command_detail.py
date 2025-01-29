@@ -52,19 +52,22 @@ def command_details(input_data):
         "81": "End of the proactive UICC session",
     }
 
+    if len(input_data) < 4:
+        return "Unknown Command"
+
     command_value = input_data[2:4]
     command_name = command_map.get(command_value, "Unknown Command")
 
-    # Check for Command Qualifier
-    if len(input_data) !=0:
+    # 解析 Command Qualifier
+    if len(input_data) != 0:
         qualifier = input_data[4:6]
         qualifier_description = get_qualifier_description(command_value, qualifier)
         return f"{command_name} - {qualifier_description}"
-    
+
     return command_name
 
+
 def get_qualifier_description(command_value, qualifier):
-    # Define qualifier descriptions based on command value
     qualifier_map = {
         "01": {
             "00": "NAA Initialization and Full File Change Notification",
@@ -87,7 +90,6 @@ def get_qualifier_description(command_value, qualifier):
             "03": "Set up call, put others on hold, with redial",
             "04": "Set up call, disconnect others",
             "05": "Set up call, disconnect others, with redial",
-            # "06" to "FF" reserved
         },
         "13": {
             "00": "Packing not required",
@@ -156,18 +158,15 @@ def get_qualifier_description(command_value, qualifier):
             "0F": "Location Information for multiple access",
             "10": "Network Measurement results for multiple access",
             "1A": "Supported Radio Access Technologies",
-            # "1B" to "FF" reserved
         },
         "33": {
             "00": "Card reader status",
             "01": "Card reader identifier",
-            # "02" to "FF" reserved
         },
         "27": {
             "00": "Start",
             "01": "Deactivate",
             "10": "Get current value",
-            # "11" RFU
         },
         "40": {
             "00": "On demand link establishment",
@@ -203,11 +202,10 @@ def get_qualifier_description(command_value, qualifier):
         "79": {
             "00": "Proactive Session Request",
             "01": "UICC Platform Reset",
-            # "02" to "FF" reserved
         },
     }
-
     return qualifier_map.get(command_value, {}).get(qualifier, "Qualifier not defined: " + qualifier)
+
 
 def device_identities(input_data):
     device_map = {
@@ -249,13 +247,17 @@ def device_identities(input_data):
         "83": "Network",
     }
 
+    if len(input_data) < 4:
+        return "Unknown device identities"
+
     source_device = input_data[0:2]
     destination_device = input_data[2:4]
 
     source_description = device_map.get(source_device, "Unknown Source Device")
     destination_description = device_map.get(destination_device, "Unknown Destination Device")
 
-    return f"{source_description}->: {destination_description}"
+    return f"{source_description} -> {destination_description}"
+
 
 def result_details(input_data):
     general_result_map = {
@@ -290,18 +292,13 @@ def result_details(input_data):
         "31": "Command type not understood by terminal",
         "32": "Command data not understood by terminal",
         "33": "Command number not known by terminal",
-        "34": "Reserved for GSM/3G",
-        "35": "Reserved for GSM/3G",
         "36": "Error, required values are missing",
-        "37": "Reserved for GSM/3G",
         "38": "MultipleCard commands error",
         "39": "Interaction with call control by NAA, permanent problem",
         "3A": "Bearer Independent Protocol error",
         "3B": "Access Technology unable to process command",
         "3C": "Frames error",
         "3D": "MMS Error",
-        "3E": "Reserved for 3GPP (for future usage)",
-        "3F": "Reserved for 3GPP (for future usage)",
     }
 
     additional_info_map = {
@@ -309,12 +306,10 @@ def result_details(input_data):
             "00": "No specific cause can be given",
             "01": "Screen is busy",
             "02": "Terminal currently busy on call",
-            "03": "Reserved for GSM/3G",
             "04": "No service",
             "05": "Access control class bar",
             "06": "Radio resource not granted",
             "07": "Not in speech call",
-            "08": "Reserved for GSM/3G",
             "09": "Terminal currently busy on SEND DTMF command",
             "0A": "No NAA active",
         },
@@ -372,35 +367,44 @@ def result_details(input_data):
             "00": "No specific cause can be given",
         },
     }
+
+    if len(input_data) < 2:
+        return "Unknown General Result"
+
     general_result = input_data[:2]
     result_description = general_result_map.get(general_result, "Unknown General Result")
 
     additional_info = ""
     if len(input_data) > 2:
         additional_info_code = input_data[2:4]
-        additional_info_description = additional_info_map.get(general_result, {}).get(additional_info_code, "Unknown Additional Info")
+        additional_info_description = additional_info_map.get(general_result, {}).get(
+            additional_info_code, "Unknown Additional Info"
+        )
         additional_info = f", Additional Info: {additional_info_description}"
 
-    return f"Result: {result_description}{additional_info}" 
+    return f"Result: {result_description}{additional_info}"
+
 
 def location_info(input_data):
     # Decode MCCMNC
+    if len(input_data) < 6:
+        return "Location info length error"
+
     mccmnc_bytes = input_data[:6]
     mccmnc = f"{mccmnc_bytes[1]}{mccmnc_bytes[0]}{mccmnc_bytes[3]}{mccmnc_bytes[5]}{mccmnc_bytes[4]}{mccmnc_bytes[2]}"
-    
-    # mccmnc = ''.join([mccmnc_bytes[i+1] + mccmnc_bytes[i] for i in range(0, 6, 2)])
-    # mccmnc = mccmnc[:5] + mccmnc[5]  # Move the 4th digit to the end
-    
-    if len(input_data)/2 == 11:  # 5G scenario, 31.111 8.19
+
+    # 判断长度确定 4G / 5G
+    if len(input_data) == 22:  # 11 bytes => 5G
         tac = input_data[6:12]
         cell_id = input_data[12:]
-    elif len(input_data)/2 == 9:  # 4G scenario, 31.111 8.19
+    elif len(input_data) == 18:  # 9 bytes => 4G
         tac = input_data[6:10]
         cell_id = input_data[10:]
     else:
-        return "Invalid data length"
+        return f"Invalid location info length: {len(input_data)//2} bytes"
 
     return f"MCCMNC: {mccmnc}, TAC: {tac}, CELL ID: {cell_id}"
+
 
 def event_list_info(value):
     event_map = {
@@ -430,24 +434,19 @@ def event_list_info(value):
         '17': 'IMS Registration',
         '18': 'Incoming IMS data',
         '19': 'Profile Container',
-        '1A': 'Void',
         '1B': 'Secured Profile Container',
         '1C': 'Poll Interval Negotiation',
         '1D': 'Data Connection Status Change',
         '1E': 'CAG cell selection',
-        '1F': 'Reserved for 3GPP (for future usage)',
-        '20': 'Reserved for 3GPP (for future usage)',
-        '21': 'Reserved for 3GPP (for future usage)',
-        '22': 'Reserved for 3GPP (for future usage)',
     }
 
     events = []
     for i in range(0, len(value), 2):
         event_code = value[i:i+2]
-        event_name = event_map.get(event_code, "Unknown Event")
+        event_name = event_map.get(event_code, f"Unknown Event ({event_code})")
         events.append(event_name)
-
     return ', '.join(events)
+
 
 def bearer_description_tag(value):
     bearer_type_map = {
@@ -463,91 +462,94 @@ def bearer_description_tag(value):
         '0A': '(I-)WLAN',
         '0B': 'E-UTRAN / Satellite E-UTRAN / NG-RAN / Satellite NG-RAN / mapped UTRAN packet service',
         '0C': 'NG-RAN / Satellite NG-RAN',
-        '0D': 'Reserved for 3GPP (for future usage)',
-        '0E': 'Reserved for 3GPP (for future usage)',
     }
+
+    if len(value) < 2:
+        return "Invalid bearer description"
 
     bearer_type = value[:2]
     bearer_parameters = value[2:]
-
     bearer_type_description = bearer_type_map.get(bearer_type, 'Unknown Bearer Type')
 
-    return f"\tBearer type: {bearer_type_description}, Bearer parameters: {bearer_parameters}"
+    return f"Bearer type: {bearer_type_description}, Bearer parameters: {bearer_parameters}"
+
 
 def address_tag(value):
-    # 获取第一个字节并转换为二进制
+    if len(value) < 2:
+        return "Invalid address tag"
+
     ton_npi_byte = bin(int(value[:2], 16))[2:].zfill(8)
-    
-    # 解析 TON (Type of Number)
     ton_bits = ton_npi_byte[1:4]  # b7-b5
-    ton_value = {
+    npi_bits = ton_npi_byte[4:]   # b4-b1
+
+    ton_dict = {
         '000': 'Unknown',
         '001': 'International Number',
         '010': 'National Number',
         '011': 'Network Specific Number',
-        # 其他值为保留或特定于接入技术
-    }.get(ton_bits, 'Reserved/Access Technology Specific')
-
-    # 解析 NPI (Numbering Plan Identification)
-    npi_bits = ton_npi_byte[4:]  # b4-b1
-    npi_value = {
+    }
+    npi_dict = {
         '0000': 'Unknown',
         '0001': 'ISDN/telephony numbering plan (E.164/E.163)',
         '0011': 'Data numbering plan (X.121)',
         '0100': 'Telex numbering plan (F.69)',
         '1001': 'Private numbering plan',
         '1111': 'Reserved for extension',
-        # 其他值为保留或特定于接入技术
-    }.get(npi_bits, 'Reserved/Access Technology Specific')
+    }
 
-    # 获取拨号号码部分并进行数字互换
+    ton_value = ton_dict.get(ton_bits, 'Reserved/Access Technology Specific')
+    npi_value = npi_dict.get(npi_bits, 'Reserved/Access Technology Specific')
+
     dialling_number_raw = value[2:]
     dialling_number = ''
     for i in range(0, len(dialling_number_raw), 2):
         byte = dialling_number_raw[i:i+2]
         if len(byte) == 2:
-            # 交换两个数字的位置
             dialling_number += byte[1] + byte[0]
-    
+
     return f"TON: {ton_value}, NPI: {npi_value}, Dialling Number: {dialling_number}"
 
+
 def data_destination_address_tag(value):
-    ip_type_byte = value[0:2]  
+    if len(value) < 2:
+        return "Unknown IP type"
+
+    ip_type_byte = value[0:2]
     ip_address = []
 
-    if ip_type_byte == "21":  # IPV4
+    if ip_type_byte == "21":  # IPv4
         for i in range(2, len(value), 2):
-            byte = int(value[i:i+2], 16)  
+            byte = int(value[i:i+2], 16)
             ip_address.append(str(byte))
-        ip_type = "IPV4"
-        return f"{ip_type}: {'.'.join(ip_address)}"
-    elif ip_type_byte == "57":  # IPV6
-        for i in range(2, len(value), 4):  # Process two bytes at a time
+        return f"IPV4: {'.'.join(ip_address)}"
+    elif ip_type_byte == "57":  # IPv6
+        for i in range(2, len(value), 4):
             byte_pair = value[i:i+4]
             ip_address.append(byte_pair)
-        ip_type = "IPV6"
-        return f"{ip_type}: {':'.join(ip_address)}"
+        return f"IPV6: {':'.join(ip_address)}"
     else:
-        ip_type = "Unknown IP type"
-        return f"{ip_type}: {':'.join(ip_address)}"
+        return "Unknown IP type"
+
 
 def parse_channel_status(value):
-    channel_status_byte3 = int(value[0:2], 16)  
-    channel_id = channel_status_byte3 & 0b00000111  # get channel id
-    bip_channel_established = (channel_status_byte3 >> 7) & 0b00000001  
-    if bip_channel_established == 1:
-        bip_channel_established = "BIP channel established"
-    else:
-        bip_channel_established = "BIP channel not established"
+    if len(value) < 4:
+        return "Invalid channel status"
 
-    channel_status_byte4 = value[2:6]  
-    if channel_status_byte4 == '00':
-        further_info = "No further info can be given"
-    elif channel_status_byte4 == '05':
-        further_info = "Link dropped (network failure or user cancellation)"
+    channel_status_byte3 = int(value[0:2], 16)
+    channel_id = channel_status_byte3 & 0b00000111
+    bip_established_flag = (channel_status_byte3 >> 7) & 0b00000001
+    bip_channel_established = "BIP channel established" if bip_established_flag == 1 else "BIP channel not established"
 
+    further_info = ""
+    if len(value) >= 6:
+        channel_status_byte4 = value[2:6]
+        if channel_status_byte4 == '00':
+            further_info = "No further info can be given"
+        elif channel_status_byte4 == '05':
+            further_info = "Link dropped (network failure or user cancellation)"
 
     return f"Channel ID: {channel_id}, {bip_channel_established}, {further_info}"
+
 
 def access_technology(value):
     technology_map = {
@@ -571,11 +573,11 @@ def access_technology(value):
         tech_code = value[i:i+2]
         tech_description = technology_map.get(tech_code, 'Unknown Technology')
         technologies.append(tech_description)
-
     return ', '.join(technologies)
 
+
 def timer_identifier(value):
-    if len(value) != 2:  # Check if the value is exactly one byte (2 hex characters)
+    if len(value) != 2:
         return f"Raw value: {value}"
 
     timer_map = {
@@ -588,11 +590,11 @@ def timer_identifier(value):
         '07': 'Timer 7',
         '08': 'Timer 8',
     }
-
     return timer_map.get(value, "Reserved")
 
+
 def duration_tag(value):
-    if len(value) != 4:  # Ensure the value is exactly 2 bytes (4 hex characters)
+    if len(value) != 4:
         return f"Invalid duration value: {value}"
 
     time_unit_map = {
@@ -600,7 +602,6 @@ def duration_tag(value):
         '01': 'seconds',
         '02': 'tenths of seconds',
     }
-
     time_unit_code = value[:2]
     time_interval_code = value[2:]
 
@@ -610,7 +611,6 @@ def duration_tag(value):
     if time_unit == 'reserved' or time_interval == 0:
         return f"Invalid duration: {value}"
 
-    # Calculate the duration
     if time_unit == 'tenths of seconds':
         duration = time_interval / 10.0
         unit = 'seconds'
@@ -620,6 +620,7 @@ def duration_tag(value):
 
     return f"{duration} {unit}"
 
+
 def parse_imei(value):
     if len(value) % 2 != 0:
         return "Invalid IMEI length"
@@ -627,7 +628,6 @@ def parse_imei(value):
     imei = []
     for i in range(0, len(value), 2):
         byte = value[i:i+2]
-        # Swap the two characters in each byte
         swapped_byte = byte[1] + byte[0]
         imei.append(swapped_byte)
 
