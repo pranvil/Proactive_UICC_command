@@ -232,7 +232,7 @@ def parse_apdu_lines_in_memory(lines):
         command_name_for_list = "unknown"
 
         if input_data.startswith("D0"):
-            direction_str = "uicc=>terminal: proactive command"
+            direction_str = "UICC=>TERMINAL: proactive command"
             # 解析长度
             if len(input_data) >= 6 and input_data[4:6] == "81":
                 length = int(input_data[2:4], 16)
@@ -258,7 +258,7 @@ def parse_apdu_lines_in_memory(lines):
             })
 
         elif input_data.startswith("80"):
-            direction_str = "terminal=>uicc"
+            direction_str = "TERMINAL=>UICC"
             # 通常结构: 80xx..., 先取 8:10 这两位做 length
             if len(input_data) < 10:
                 items.append({

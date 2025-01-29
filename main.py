@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
 import re
@@ -7,11 +8,16 @@ from apdu_extractor import select_file_and_extract
 from apdu_parser import parse_apdu_lines_in_memory
 
 def build_ui(parsed_items):
-    # 1) 创建主窗口
-    root = tk.Tk()
-    root.title("APDU 解析结果查看 (支持正则搜索)")
+    def on_closing():
+        root.destroy()
+        sys.exit(0)
 
-    # 2) 顶部搜索区
+    root = tk.Tk()
+    root.title("APDU 解析结果 - Listbox带滚动条")
+    root.geometry("1200x600")
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    # =========== 顶部搜索区 =============
     top_frame = tk.Frame(root)
     top_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
@@ -26,20 +32,34 @@ def build_ui(parsed_items):
     search_btn = tk.Button(top_frame, text="Search", command=lambda: do_search())
     search_btn.pack(side=tk.LEFT, padx=5)
 
-    main_frame = tk.Frame(root)
-    main_frame.pack(fill=tk.BOTH, expand=True)
+    # =========== 下面主区域，用 PanedWindow 来分割 =============
+    paned = tk.PanedWindow(root, orient=tk.HORIZONTAL, sashrelief=tk.RAISED)
+    paned.pack(fill=tk.BOTH, expand=True)
 
-    # 左边列表
-    left_frame = tk.Frame(main_frame)
-    left_frame.pack(side=tk.LEFT, fill=tk.BOTH)
+    # --- 左侧 Frame ---
+    left_frame = tk.Frame(paned)
+    left_frame.pack(fill=tk.BOTH, expand=True)
 
-    listbox = tk.Listbox(left_frame, width=50)
+    # 在 left_frame 内创建一个滚动条，用于 Listbox 的垂直滚动
+    scrollbar_y = tk.Scrollbar(left_frame, orient=tk.VERTICAL)
+    scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+    # 创建 Listbox，并关联滚动条
+    listbox = tk.Listbox(left_frame, yscrollcommand=scrollbar_y.set)
     listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-    # 右边分上下布局(8:2)
-    right_frame = tk.Frame(main_frame)
-    right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    # 设置滚动条命令，让它控制 Listbox
+    scrollbar_y.config(command=listbox.yview)
 
+    # 将左侧 Frame 添加到 PanedWindow
+    paned.add(left_frame, minsize=200)
+
+    # --- 右侧 Frame ---
+    right_frame = tk.Frame(paned)
+    right_frame.pack(fill=tk.BOTH, expand=True)
+    paned.add(right_frame, minsize=300)
+
+    # 在右侧 Frame 里再分上下布局 (8:2)
     right_frame.rowconfigure(0, weight=8)
     right_frame.rowconfigure(1, weight=2)
     right_frame.columnconfigure(0, weight=1)
@@ -50,15 +70,21 @@ def build_ui(parsed_items):
     text_raw = scrolledtext.ScrolledText(right_frame, wrap=tk.WORD)
     text_raw.grid(row=1, column=0, sticky="nsew")
 
-    # 所有items（不经过搜索）
+    # 全部 items（未过滤）
     all_items = parsed_items[:]
-    # 当前显示（过滤后）的列表
+    # 当前显示（过滤后）
     all_items_filtered = all_items[:]
 
     def update_listbox(show_items):
         listbox.delete(0, tk.END)
         for it in show_items:
+            index = listbox.size()
             listbox.insert(tk.END, it["title"])
+            title = it["title"]
+            if "TERMINAL=>UICC" in title.upper():
+                listbox.itemconfig(index, foreground="blue")
+            elif "UICC=>TERMINAL" in title.upper():
+                listbox.itemconfig(index, foreground="red")
 
     def on_select(evt):
         if not all_items_filtered:
@@ -78,18 +104,8 @@ def build_ui(parsed_items):
     listbox.bind("<<ListboxSelect>>", on_select)
 
     def do_search():
-        """
-        支持正则表达式搜索。
-        - 若用户输入为空，则显示所有
-        - 若用户输入非空，则编译为正则表达式，并用 re.search(pattern, title, re.IGNORECASE) 做匹配
-        - 若正则无效，弹窗提示
-        """
         nonlocal all_items_filtered
-        # 取输入框字符串
         pattern_str = search_var.get().strip()
-        print(">>> do_search() called, raw input =", repr(pattern_str))
-
-        # 若搜索框为空，显示所有条目
         if not pattern_str:
             all_items_filtered = all_items[:]
             update_listbox(all_items_filtered)
@@ -98,19 +114,16 @@ def build_ui(parsed_items):
                 listbox.event_generate("<<ListboxSelect>>")
             return
 
-        # 编译正则表达式（忽略大小写）
         try:
             regex = re.compile(pattern_str, re.IGNORECASE)
         except re.error as e:
             messagebox.showerror("Regex Error", f"无效的正则表达式: {e}")
             return
 
-        # 逐条匹配
         filtered = []
         for it in all_items:
-            title_lower = it["title"]
-            # 若匹配成功则加入结果
-            if regex.search(title_lower):
+            title_text = it["title"]
+            if regex.search(title_text):
                 filtered.append(it)
 
         all_items_filtered = filtered
@@ -123,7 +136,7 @@ def build_ui(parsed_items):
             text_raw.delete(1.0, tk.END)
             messagebox.showinfo("提示", f"未搜索到匹配正则 '{pattern_str}' 的项")
 
-    # 初始化
+    # 初始化列表
     update_listbox(all_items_filtered)
     if all_items_filtered:
         listbox.select_set(0)
