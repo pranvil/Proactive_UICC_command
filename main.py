@@ -21,17 +21,29 @@ def build_ui():
     top_frame = tk.Frame(root)
     top_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-    # 按钮：让用户点击后选择并解析 APDU 文件
-    load_btn = tk.Button(top_frame, text="Load APDU", command=lambda: select_and_parse())
-    load_btn.pack(side=tk.LEFT, padx=5)
+    # 1) 按钮：解析原始MTK APDU日志
+    #   (原先的“Load APDU”按钮更名为“Load MTK APDU raw data”)
+    load_raw_btn = tk.Button(
+        top_frame,
+        text="Load MTK APDU raw data",
+        command=lambda: select_and_parse_raw()
+    )
+    load_raw_btn.pack(side=tk.LEFT, padx=5)
 
+    # 2) 新增按钮：加载已格式化的APDU
+    load_fmt_btn = tk.Button(
+        top_frame,
+        text="Load formatted APDU",
+        command=lambda: select_and_parse_formatted()
+    )
+    load_fmt_btn.pack(side=tk.LEFT, padx=5)
+
+    # 搜索相关UI
     tk.Label(top_frame, text="搜索:").pack(side=tk.LEFT, padx=10)
     search_var = tk.StringVar(master=root)
     search_entry = tk.Entry(top_frame, textvariable=search_var, width=40)
     search_entry.pack(side=tk.LEFT, padx=5)
-
-    # 在搜索框里按回车也触发搜索
-    search_entry.bind("<Return>", lambda e: do_search())
+    search_entry.bind("<Return>", lambda e: do_search())  # 回车也触发搜索
 
     search_btn = tk.Button(top_frame, text="Search", command=lambda: do_search())
     search_btn.pack(side=tk.LEFT, padx=5)
@@ -44,7 +56,7 @@ def build_ui():
     left_frame = tk.Frame(paned)
     left_frame.pack(fill=tk.BOTH, expand=True)
 
-    # 在 left_frame 内创建一个滚动条，用于 Listbox 的垂直滚动
+    # 滚动条 + Listbox
     scrollbar_y = tk.Scrollbar(left_frame, orient=tk.VERTICAL)
     scrollbar_y.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -82,6 +94,7 @@ def build_ui():
             index = listbox.size()
             listbox.insert(tk.END, it["title"])
             title = it["title"]
+            # 根据方向设置颜色
             if "TERMINAL=>UICC" in title.upper():
                 listbox.itemconfig(index, foreground="blue")
             elif "UICC=>TERMINAL" in title.upper():
@@ -146,28 +159,63 @@ def build_ui():
             text_raw.delete(1.0, tk.END)
             messagebox.showinfo("提示", f"未搜索到匹配正则 '{pattern_str}' 的项")
 
-    # -------- 让用户选择并解析 APDU 文件 --------
-    def select_and_parse():
+    # =========== 两种加载模式的函数 ===========
+
+    def select_and_parse_raw():
+        """
+        让用户选择一个 *原始MTK日志* 文件，
+        使用 extract_apdu_messages() 提取 APDU 后再进行 parse。
+        """
         nonlocal all_items, all_items_filtered
-        # 弹出文件选择对话框
         file_path = filedialog.askopenfilename(
-            title="选择包含raw APDU的日志文件",
+            title="选择包含raw APDU的日志文件(MTK格式)",
             filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
         )
         if not file_path:
             # 用户取消选择
             return
 
-        # 调用 extract_apdu_messages 从文件解析
+        # 调用 extract_apdu_messages 从文件中提取
         messages = extract_apdu_messages(file_path)
         if not messages:
             messagebox.showwarning("Warning", "没有提取到任何APDU消息！")
             return
 
-        # 将解析后的 APDU 放入内存再进一步解析
+        # 将提取后的 lines 放入 parse_apdu_lines_in_memory
         parsed = parse_apdu_lines_in_memory(messages)
 
-        # 用新的数据更新
+        # 更新到全局
+        all_items = parsed
+        all_items_filtered = all_items[:]
+        update_listbox(all_items_filtered)
+        if all_items_filtered:
+            listbox.select_set(0)
+            listbox.event_generate("<<ListboxSelect>>")
+
+    def select_and_parse_formatted():
+        """
+        让用户选择一个 *已格式化好的APDU* 文件，
+        直接把该文件每行视为一条APDU字符串，不进行提取，
+        然后调用 parse_apdu_lines_in_memory 解析。
+        """
+        nonlocal all_items, all_items_filtered
+        file_path = filedialog.askopenfilename(
+            title="选择已格式化APDU文件(每行一个APDU Hex)",
+            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")]
+        )
+        if not file_path:
+            return
+
+        # 不再做 extract，仅仅把所有行读进来
+        with open(file_path, "r") as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        if not lines:
+            messagebox.showwarning("Warning", "文件为空或无有效行！")
+            return
+
+        parsed = parse_apdu_lines_in_memory(lines)
+
         all_items = parsed
         all_items_filtered = all_items[:]
         update_listbox(all_items_filtered)
@@ -178,8 +226,7 @@ def build_ui():
     root.mainloop()
 
 def main():
-    # 不自动调用 select_file_and_extract()
-    # 仅创建UI让用户自行点击"Load APDU"加载文件。
+    # 不自动调用任何提取函数。仅创建UI，让用户自行点按钮加载文件。
     build_ui()
 
 if __name__ == "__main__":
