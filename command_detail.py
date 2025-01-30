@@ -541,7 +541,7 @@ def parse_channel_status(value):
     bip_channel_established = "BIP channel established" if bip_established_flag == 1 else "BIP channel not established"
 
     further_info = ""
-    if len(value) >= 6:
+    if len(value) >= 4:
         channel_status_byte4 = value[2:6]
         if channel_status_byte4 == '00':
             further_info = "No further info can be given"

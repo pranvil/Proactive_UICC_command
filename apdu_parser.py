@@ -205,6 +205,7 @@ def cmd_parse_in_memory(input_data, length):
         elif tag in ["57", "D7"]:
             output_lines.append(f"\tTimer Expiration: {value}")
         else:
+            print(f"Unknown tag: {tag} length: {length_byte} value: {value}")
             output_lines.append(f"Unknown tag: {tag} length: {length_byte} value: {value}")
 
     return first_cmd_name, "\n".join(output_lines)
